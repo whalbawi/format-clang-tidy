@@ -1,0 +1,48 @@
+name: format-clang-tidy
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ '**' ]
+
+jobs:
+
+  lint:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ macos-14, macos-15, ubuntu-24.04 ]
+    runs-on: ${{matrix.os}}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+         submodules: recursive
+
+    - name: Setup environment
+      run: |
+        if [ $(uname) == "Darwin" ]; then
+            echo "Running on macOS"
+            brew update
+            brew install llvm@19
+            sudo ln -s "$(brew --prefix llvm@19)/bin/clang-tidy" "/usr/local/bin/clang-tidy"
+            sudo ln -s "$(brew --prefix llvm@19)/bin/clang++" "/usr/local/bin/clang++"
+        elif [ $(uname) == "Linux" ]; then
+            echo "Running on Linux"
+            sudo ln -s "$(which clang-tidy)" "/usr/local/bin/clang-tidy"
+            sudo ln -s "$(which clang++)" "/usr/local/bin/clang++"
+        fi
+
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_CXX_COMPILER=/usr/local/bin/clang++
+
+    - name: Print compilation database
+      run: cat ${{github.workspace}}/build/compile_commands.json
+
+    - name: Version Info
+      run: /usr/local/bin/clang-tidy --version
+
+    - name: Lint
+      run: /usr/local/bin/clang-tidy -p ${{github.workspace}}/build ${{github.workspace}}/src/main.cpp
+
